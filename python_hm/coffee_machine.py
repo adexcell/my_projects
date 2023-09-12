@@ -20,16 +20,12 @@ class CoffeeMachine:
     menu: dict = data_dict.get('menu', 0)
     trash_bin: int = data_dict.get('trash_bin', 0)
     water_volume: int = data_dict.get('water', 0)
+    banknotes = []
+    for i in cash_box.keys():
+        banknotes.append(int(i))
 
 
 class UserInterface(CoffeeMachine):
-
-    def print_greetings(self) -> None:
-        slogans = self.slogans
-        random_number: int = random.randint(0, len(slogans)-1)
-        greeting_slogan: str = slogans[random_number]
-        greetings = f'Добро пожаловать! {greeting_slogan}'
-        print(greetings)
 
     def choose_coffee(self):
         self.print_greetings()
@@ -46,39 +42,41 @@ class UserInterface(CoffeeMachine):
         name: str = menu_keys[number - 1]
         return name
 
-    def get_money(self) -> list:
-        values = self.cash_box.keys()
-        name = self.choose_coffee()
-        price: int = self.menu.get(name).get('price')
-        money_in = []
-        while True:
-            money = input('Внесите купюру, минимум 50 руб. Для прекращения операции введите 0 \n')
+    def print_greetings(self) -> None:
+        slogans = self.slogans
+        random_number: int = random.randint(0, len(slogans)-1)
+        greeting_slogan: str = slogans[random_number]
+        greetings = f'Добро пожаловать! {greeting_slogan}'
+        print(greetings)
+
+    def get_money(self, name) -> tuple:
+        price: int = int(self.menu.get(name).get('price'))
+        deposit = 0
+        while deposit <= price:
+            money = int(input('Внесите купюру, минимум 50 руб. Для прекращения операции введите 0 \n'))
             if money == '0':
                 break
-            elif money not in values:
+            elif money not in self.banknotes:
                 print('Введено не корректное значение, повторите')
             else:
-                money_in.append(money)
-                if sum(money_in) >= price:
-                    return money_in
-
-    def give_change(self):
-        pass
+                deposit += money
+                return deposit, price
 
     @staticmethod
-    def pour_coffee():
-        print('Пожалуйста, ваш ароматный кофе!')
+    def give_change(money):
+        print(f'Ваша сдача: {money}')
+
+    @staticmethod
+    def return_money(money):
+        print(f'Извините! Аппарат не может выдать сдачу! Ваши деньги: {money}')
+
+    @staticmethod
+    def pour_coffee(coffee_name):
+        machine.make_coffee(coffee_name)
+        print(f'Пожалуйста, ваш {coffee_name}!')
 
 
 class Machine(CoffeeMachine):
-
-    def make_coffee(self, name) -> str:
-        coffee_value: int = self.menu.get(name).get("volume")
-        self.menu[name]["quantity"] -= 1
-        self.data_dict["water"] -= coffee_value
-        self.data_dict["trash_bin"] -= 1
-        self.save_changes(self.data_dict)
-        return name
 
     # проверяет есть ли вода в кофеварке, и остались ли места в контейнере пустых капсул
     def checkup_machine(self) -> None:
@@ -92,12 +90,25 @@ class Machine(CoffeeMachine):
                 self.data_dict["trash_bin"] = 20
         self.save_changes(self.data_dict)
 
-    def save_money(self):
-        pass
+    def make_coffee(self, name) -> str:
+        coffee_value: int = self.menu.get(name).get("volume")
+        self.menu[name]["quantity"] -= 1
+        self.data_dict["water"] -= coffee_value
+        self.data_dict["trash_bin"] -= 1
+        self.save_changes(self.data_dict)
+        return name
 
-    def calculate_change(self):
-        pass
-
+    def calculate_change(self, deposit, price) -> list:
+        diff: int = deposit - price
+        change = []
+        while diff > 0:
+            for i in self.banknotes:
+                if int(i) <= diff and self.cash_box[str(i)] > 0:
+                    change.append(i)
+                    self.cash_box[str(i)] -= 1
+                    diff -= int(i)
+                    self.save_changes(self.data_dict)
+        return change
 
 
 main = UserInterface()
@@ -106,7 +117,14 @@ machine = Machine()
 
 def run_coffe_machine():
     machine.checkup_machine()
-    main.choose_coffee()
+    coffee_name = main.choose_coffee()
+    deposit, coffee_price = main.get_money(coffee_name)
+    change = machine.calculate_change(deposit, coffee_price)
+    if sum(change) > 0:
+        main.give_change(change)
+        main.pour_coffee(coffee_name)
+    elif sum(change) < 0:
+        main.return_money(deposit)
 
 
 if __name__ == "__main__":
